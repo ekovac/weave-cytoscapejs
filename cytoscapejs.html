@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <script src="http://ajax.googleapis.com/ajax/libs/jquery/1/jquery.min.js"></script>
+    <meta charset=utf-8 />
+    <title>CytoscapeJS Weave Tool</title>
+    <link href="cytoscapejs.css" rel="stylesheet" type="text/css"/>
+    <!-- script src="http://cytoscape.github.io/cytoscape.js/api/cytoscape.js-2.2.4/cytoscape.min.js"></script -->
+    <script src="cytoscape.js"></script>
+    <script src="arbor.js"></script>
+    <script src="WeaveExternalHelper.js"></script>
+</head>
+<body>
+    <div id="cy">
+    </div>
+<script>
+    cytoscape_style = 
+        cytoscape.stylesheet()
+            .selector('node')
+                .css({
+                        'content': 'data(name)',
+                        'text-valign': 'center',
+                        'color': 'white',
+                        'text-outline-width': 2,
+                        'text-outline-color': '#888'
+                        })
+            .selector('edge')
+                .css({
+                        'target-arrow-shape': 'triangle',
+                        'curve-style': 'haystack'
+                        })
+            .selector(':selected')
+                .css({
+                        'background-color': 'black',
+                        'line-color': 'black',
+                        'target-arrow-color': 'black',
+                        'source-arrow-color': 'black'
+                        })
+            .selector('.faded')
+                .css({
+                        'opacity': 0.25,
+                        'text-opacity': 0
+                        })
+            .selector('.hidden')
+                .css({
+                        'opacity': 0,
+                        'text-opacity': 0
+                        });
+
+    var column_to_prop_mappings = {
+        nodeLabel: "name",
+        edgeSource: "source",
+        edgeTarget: "target"
+    };
+    var node_column_names = ['nodeLabel'];
+    var edge_column_names = ['edgeSource', 'edgeTarget'];
+
+    function data_updated()
+    {
+        var node_keytype = toolPath.push('nodeLabel').getValue("getMetadata('keyType')");
+
+        var node_data = toolPath.retrieveColumns(node_column_names);
+        var edge_data = toolPath.retrieveColumns(edge_column_names);
+
+        for (var col = 1; col < edge_column_names.length+1; col++)
+        {
+            column = edge_data[col];
+            for (var row = 0; row < column.length; row++)
+            {
+                new_entry = [ node_keytype, edge_data[col][row].toString() ]; // Add the keytype, convert localname to string
+                edge_data[col][row] = JSON.stringify(new_entry);
+            }
+        }
+
+        var nodes = Array(node_data[0].length);
+        for (var row = 0; row < node_data[0].length; row++)
+        {
+            new_node = {};
+            new_node.id = node_data[0][row];
+            for (var col = 0; col < node_column_names.length; col++)
+            {
+                property = column_to_prop_mappings[node_column_names[col]];
+                
+                new_node[property] = node_data[col+1][row].trim();
+            }
+            nodes[row] = {data: new_node};
+        }
+
+        var edges = Array(edge_data[0].length);
+        for (var row = 0; row < edge_data[0].length; row++)
+        {
+            new_edge = {};
+            new_edge.id = edge_data[0][row];
+            for (var col = 0; col < edge_column_names.length; col++)
+            {
+                property = column_to_prop_mappings[edge_column_names[col]];
+                new_edge[property] = edge_data[col+1][row];
+            }
+            edges[row] = {data: new_edge};
+        }
+        cy.layout({name: 'circle'});
+        cy.load({nodes: nodes, edges: edges});
+    };
+    var edge_index;
+    var node_index;
+    function build_indices(e)
+    {
+        node_index = build_index('node');
+        edge_index = build_index('edge');
+    }
+    function build_index(group)
+    {
+        var index = {};
+        var group_selection = cy.filter(group);
+        for (var i = 0; i < group_selection.length; i++)
+        {
+            var ele = group_selection[i];
+            index[ele.data().id] = ele;
+        }
+        return index;
+    };
+
+    function is_in(ele, obj)
+    {
+        return obj[ele.data().id] != undefined;
+    };
+    function arr_to_obj(arr)
+    {
+        obj = {};
+        for (var i = 0; i < arr.length; i++)
+        {
+            obj[arr[i]] = true;
+        }
+        return obj;
+    };
+    var selection_changed_calls = 0;
+    function selection_changed()
+    {
+        cy.elements().unselect();
+        keys_obj = arr_to_obj(toolPath.selection_keyset.getKeys())
+        cy.filter(function(i, ele) { return is_in(ele, keys_obj); }).select();
+    };
+    
+    var local_selection = {};
+    var selection_timeout_id = null;
+
+    function send_selection()
+    {
+        toolPath.selection_keyset.setKeys(Object.keys(local_selection));
+        selection_timeout_id = null;
+    }
+    function add_to_selection(evt)
+    {
+        ele = evt.cyTarget;
+        local_selection[ele.id()] = true;
+        if (selection_timeout_id == null)
+            selection_timeout_id = window.setTimeout(send_selection, 100);
+    }
+    function remove_from_selection(evt)
+    {
+        ele = evt.cyTarget;
+        delete local_selection[ele.id()];
+        if (selection_timeout_id == null)
+            selection_timeout_id = window.setTimeout(send_selection, 100);
+    }
+    function update_selection(evt)
+    {
+        ele = evt.cyTarget;
+        update_selection_calls++;
+        var selected = cy.filter(function(i,ele) { return ele.selected(); });
+        var selected_keys = Array(selected.length);
+        for (var i = 0; i < selected_keys.length; i++)
+        {
+            selected_keys[i] = selected[i].data().id;
+        }
+        toolPath.selection_keyset.setKeys(selected_keys);
+    };
+    function probe(evt)
+    {
+
+    };
+    function unprobe(evt)
+    {
+
+    };
+
+    var toolPath;
+    $(function() {
+    $('#cy').cytoscape( { style: cytoscape_style, ready: function () { 
+        window.cy = this
+        toolPath = weaveExternalInit();
+        toolPath.newProperty('nodeLabel', 'DynamicColumn', data_updated)
+                .newProperty('edgeSource', 'DynamicColumn', data_updated)
+                .newProperty('edgeTarget', 'DynamicColumn', data_updated);
+        toolPath.selection_keyset.addCallback(selection_changed, true);
+        cy.on({select: add_to_selection, unselect: remove_from_selection});
+        cy.on({mouseover: probe, mouseout: unprobe}, 'node');
+        cy.on({mouseover: probe, mouseout: unprobe}, 'edge');
+                } })
+    });
+</script>
+</body>
+</html>
