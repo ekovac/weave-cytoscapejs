@@ -69,7 +69,7 @@
             column = edge_data[col];
             for (var row = 0; row < column.length; row++)
             {
-                new_entry = { keyType: node_keytype, localName: edge_data[col][row].toString() }; // Add the keytype, convert localname to string
+                new_entry = { keyType: node_keytype, localName: edge_data[col][row] };
                 edge_data[col][row] = toolPath.qkeyToString(new_entry);
             }
         }
@@ -164,23 +164,16 @@
 
         cy.off({select: add_to_selection, unselect: remove_from_selection});
 
-        console.log("Unselecting...");
         cy.elements().unselect();
-        console.log("Deselecting...");
+
         cy.filter(function(i, ele) { return is_in(ele.id(), local_selection); }).select();
 
         cy.on({select: add_to_selection, unselect: remove_from_selection});
-
-        console.log("Weave selection_keyset changed!");
-        console.log(Object.keys(local_selection));
     };
 
     function send_selection()
     {
         toolPath.selection_keyset.setKeys(Object.keys(local_selection));
-
-        console.log("Updating Weave selection_keyset:");
-        console.log(Object.keys(local_selection));
 
         selection_timeout_id = null;
     }
@@ -189,14 +182,14 @@
         ele = evt.cyTarget;
         local_selection[ele.id()] = true;
         if (selection_timeout_id == null)
-            selection_timeout_id = window.setTimeout(send_selection, 100);
+            selection_timeout_id = window.setTimeout(send_selection, 50);
     }
     function remove_from_selection(evt)
     {
         ele = evt.cyTarget;
         delete local_selection[ele.id()];
         if (selection_timeout_id == null)
-            selection_timeout_id = window.setTimeout(send_selection, 100);
+            selection_timeout_id = window.setTimeout(send_selection, 50);
     }
 
     function positions_changed()
