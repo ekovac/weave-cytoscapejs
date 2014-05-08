@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+5<!DOCTYPE html>
 <html>
 <head>
     <script src="http://ajax.googleapis.com/ajax/libs/jquery/1/jquery.min.js"></script>
@@ -69,7 +69,7 @@
             column = edge_data[col];
             for (var row = 0; row < column.length; row++)
             {
-                new_entry = { keyType: node_keytype, localName: edge_data[col][row] };
+                new_entry = { localName: edge_data[col][row] , keyType: node_keytype};
                 edge_data[col][row] = toolPath.qkeyToString(new_entry);
             }
         }
@@ -192,24 +192,23 @@
             selection_timeout_id = window.setTimeout(send_selection, 50);
     }
 
+    function qkeyStringToString(qkey_string)
+    {
+        return toolPath.qkeyToString(JSON.parse(qkey_string));
+    }
+    function stringToQKeyString(str)
+    {
+        return JSON.stringify(toolPath.stringToQKey(str));
+    }
+
     function positions_changed()
     {
-        var positions = null;
-        var positions_str = toolPath.push('positions').getState();    
-
-        try 
-        {
-            positions = JSON.parse(positions_str)
-        }
-        catch (e)
-        {
-            console.log(e);
-        }
+        var positions = toolPath.push('positions').getState();
 
         if (positions == null)
             return;
 
-        cy.nodes().positions(function (i, ele) { return positions[ele.id()]; });
+        cy.nodes().positions(function (i, ele) { return positions[stringToQKeyString(ele.id())]; });
     }
 
     var position_timeout_id = null;
@@ -221,11 +220,11 @@
         var positions = {};
         for (idx = 0; idx < nodes.length; idx++)
         {
-            var id = nodes[idx].id();
+            var id = stringToQKeyString(nodes[idx].id());
             var pos = nodes[idx].position();
             positions[id] = pos;
         }
-        toolPath.push('positions').state(JSON.stringify(positions));
+        toolPath.push('positions').state(positions);
 
         position_timeout_id = null;
     }
@@ -288,11 +287,11 @@
         toolPath.newProperty('nodeLabel', 'DynamicColumn', data_updated)
                 .newProperty('nodeColor', 'DynamicColumn', data_updated) // TODO
                 .newProperty('nodeSize', 'DynamicColumn', data_updated) // TODO
-                .newProperty('edgeSource', 'DynamicColumn', data_updated)
+                .newProperty('edgeSource', 'DynamicColumn', data_updated) 
                 .newProperty('edgeTarget', 'DynamicColumn', data_updated)
                 .newProperty('layoutName', 'LinkableString', layout_updated)
                 .newProperty('layoutParams', 'LinkableVariable', layout_updated)
-                .newProperty('positions', 'LinkableString', positions_changed); // TODO
+                .newProperty('positions', 'LinkableVariable', positions_changed);
         
         toolPath.selection_keyset.addCallback(selection_changed, true);
         toolPath.probe_keyset.addCallback(probe_changed, true);
