@@ -6,5 +6,5 @@ function weaveExternalInit()
     {
         window.weave = opener.document.getElementById(weave_id);
     }
-    return window.weave.path(path).request("ExternalTool").naturalize();
+    return window.weave.path(path).request("ExternalTool");
 }
