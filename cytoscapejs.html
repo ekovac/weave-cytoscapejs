@@ -18,6 +18,7 @@
     </div>
     <div id="controls">
             <button title="Zoom to Fit" onclick="cy.fit()">Z</button>
+            <select name="layout_dropdown"></select>
             <button title="Run layout" onclick="run_layout()">&#8634;</button>
             <button title="Open Attribute Selector" onclick="open_attribute_selector()"><bold>&#9082;</bold></button>
     </div>
@@ -54,7 +55,13 @@
                 .css({
                         'opacity': 0,
                         'text-opacity': 0
-                        });
+                        })
+            .selector('.probed')
+                .css({
+                        'background-color': 'red',
+                        'line-color': 'red',
+                        'line-width': 3
+                });
 
     /* Session variable names */
     var NODE_LABEL = "Node Label";
@@ -65,6 +72,7 @@
     var LAYOUT_NAME = "Layout Name";
     var LAYOUT_PARAMS = "Layout Parameters";
     var POSITIONS = "Positions";
+    var VIEWPORT = "Viewport";
 
     var column_to_prop_mappings = {};
     column_to_prop_mappings[NODE_LABEL] = "name";
@@ -128,42 +136,37 @@
         run_layout();
     };
 
-    function is_in(ele, obj)
-    {
-        if (typeof ele != "string") throw "is_in takes a string, not an object.";
-        return obj[ele.data().id] != undefined;
-    };
-    function arr_to_obj(arr)
-    {
-        obj = {};
-        for (var i = 0; i < arr.length; i++)
-        {
-            obj[arr[i]] = true;
-        }
-        return obj;
-    };
+    
     var selection_changed_calls = 0;
 
 
     function probe_changed()
     {
 
+        var local_probes = array_to_set(toolPath.probe_keyset.getKeys());
+
+        cy.filter(function(i, ele) { return is_in(ele.id(), local_probes); }).toggleClass("probed", true);
+        cy.filter(function(i, ele) { return !is_in(ele.id(), local_probes); }).toggleClass("probed", false);
+
     };
 
     function probe(evt)
     {
-
+        var ele = evt.cyTarget;
+        ele.toggleClass("probed", true);
+        toolPath.probe_keyset.setKeys([ele.id()]);
     };
+
     function unprobe(evt)
     {
-
+        toolPath.probe_keyset.setKeys([]);
     };
     var local_selection = {};
     var selection_timeout_id = null;
 
     function selection_changed()
     {
-        local_selection = arr_to_obj(toolPath.selection_keyset.getKeys());
+        local_selection = array_to_set(toolPath.selection_keyset.getKeys());
 
         cy.off({select: add_to_selection, unselect: remove_from_selection});
 
@@ -206,7 +209,10 @@
 
     function positions_changed()
     {
-        console.log("positions changed");
+        if (position_change_ignore)
+        {
+            return;
+        }
         var positions = toolPath.push(POSITIONS).getState();
 
         if (positions == null || positions == "")
@@ -221,7 +227,6 @@
 
     function send_positions(evt)
     {
-        console.log("sending positions");
         var nodes = cy.nodes();
         var idx;
         var positions = {};
@@ -256,13 +261,17 @@
     }
     function is_in(key, set)
     {
+        if (typeof key != "string") throw "is_in takes a string, not an object.";
+
         if (Array.isArray(set))
             return is_in(key, array_to_set(set));
         else
             return set[key] ? true : false;
     }
 
-    var valid_layouts = ['null', 'random', 'preset', 'grid', 'circle', 'concentric', 'breadthfirst', 'arbor', 'springy'];
+    var valid_layouts = {null: 'Null', random: 'Random', preset: 'Preset', 
+                         grid: 'Grid', circle: 'Circle', concentric: 'Concentric', 
+                         breadthfirst: 'Breadth-First', arbor: 'Arbor (Force-Directed)'};
 
     function run_layout()
     {
@@ -290,20 +299,82 @@
         return;
     }
 
+    var position_change_ignore = false;
+    function disable_position_change()
+    {
+        position_change_ignore = true;
+    }
+    function enable_position_change()
+    {
+        position_change_ignore = false;
+    }
+
+    $('select[name="layout_dropdown"]').change(function ()
+    {
+        var new_value = $('select[name="layout_dropdown"] option:selected').attr("value");
+        toolPath.push(LAYOUT_NAME).state(new_value);
+    });
+
+    function layout_changed()
+    {
+        var layout_value = toolPath.push(LAYOUT_NAME).getState();
+        $('select[name="layout_dropdown"] option:selected').removeAttr("selected")
+        $('select[name="layout_dropdown"] option[value="' + layout_value + '"]').attr("selected", "yes");
+    }
+
+    function update_viewport()
+    {
+        if (update_viewport_disabled)
+        {
+            return;
+        }
+        var viewport_value = cy.pan();
+        viewport_value['zoom'] = cy.zoom();
+
+        toolPath.push(VIEWPORT).state(viewport_value);
+        console.log("Setting session state:", viewport_value)
+    }
+    var update_viewport_disabled = false;
+    function viewport_changed()
+    {
+        console.log("BOO");
+        var viewport_value = toolPath.push(VIEWPORT).getState();
+        if (viewport_value == null || viewport_value == undefined || 
+             (viewport_value.x == undefined) || 
+             (viewport_value.y == undefined) || 
+             (viewport_value.zoom == undefined))
+        {
+            update_viewport();
+            console.log("Invalid viewport value, setting from current.")
+            return;
+        };
+        var pan_to = {x: viewport_value.x, y: viewport_value.y};
+        var zoom_level = viewport_value.zoom;
+        
+        console.log("Moving viewport:", pan_to);
+        update_viewport_disabled = true;
+        cy.pan(pan_to);
+        console.log("Changing zoom to:", zoom_level);
+        cy.zoom(zoom_level);
+        update_viewport_disabled = false;
+    }
+
     var toolPath;
+
     $(function() {
     $('#cy').cytoscape( { style: cytoscape_style, ready: function () { 
         window.cy = this
         toolPath = weaveExternalInit();
 
-        toolPath.request(LAYOUT_NAME, 'LinkableString')
+        toolPath.newProperty(LAYOUT_NAME, 'LinkableString', layout_changed)
                 .request(LAYOUT_PARAMS, 'LinkableVariable')
                 .newProperty(NODE_LABEL, 'DynamicColumn', data_updated)
                 .newProperty(NODE_COLOR, 'DynamicColumn', data_updated) // TODO
                 .newProperty(NODE_SIZE, 'DynamicColumn', data_updated) // TODO
-                .newProperty(EDGE_SOURCE, 'DynamicColumn', data_updated) 
+                .newProperty(EDGE_SOURCE, 'DynamicColumn', data_updated)
                 .newProperty(EDGE_TARGET, 'DynamicColumn', data_updated)
-                .newProperty(POSITIONS, 'LinkableVariable', positions_changed);
+                .newProperty(POSITIONS, 'LinkableVariable', positions_changed)
+                .newProperty(VIEWPORT, 'LinkableVariable', viewport_changed);
         
         toolPath.selection_keyset.addCallback(selection_changed, true);
         toolPath.probe_keyset.addCallback(probe_changed, true);
@@ -312,8 +383,20 @@
         cy.on({position: update_positions}, 'node');
         cy.on({mouseover: probe, mouseout: unprobe}, 'node');
         cy.on({mouseover: probe, mouseout: unprobe}, 'edge');
+        cy.on({drag: disable_position_change, free: enable_position_change});
+        cy.on({zoom: update_viewport, pan: update_viewport});
+
         } })
+        
+
+        $.each(valid_layouts, function(key, value)
+        {
+            $('select[name="layout_dropdown"]')
+                .append($('<option></option>')
+                .text(value).attr("value",key));
+        });
     });
+
 </script>
 </body>
 </html>
