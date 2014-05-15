@@ -37,7 +37,10 @@
             .selector('edge')
                 .css({
                         'target-arrow-shape': 'triangle',
-                        'curve-style': 'haystack'
+                        'target-arrow-color': '#888',
+                        'content': 'data(name)',
+                        'color':'#888',
+                        'curve-style': 'bezier'
                         })
             .selector(':selected')
                 .css({
@@ -67,20 +70,26 @@
     var NODE_LABEL = "Node Label";
     var NODE_COLOR = "Node Color";
     var NODE_SIZE = "Node Size";
+    var NODE_PARENT = "Node Parent";
     var EDGE_SOURCE = "Edge Source";
     var EDGE_TARGET = "Edge Target";
+    var EDGE_COLOR = "Edge Color";
+    var EDGE_LABEL = "Edge Label";
     var LAYOUT_NAME = "Layout Name";
     var LAYOUT_PARAMS = "Layout Parameters";
     var POSITIONS = "Positions";
     var VIEWPORT = "Viewport";
+    var DIRECTIONAL = "Directional";
 
     var column_to_prop_mappings = {};
     column_to_prop_mappings[NODE_LABEL] = "name";
     column_to_prop_mappings[EDGE_SOURCE] = "source";
     column_to_prop_mappings[EDGE_TARGET] = "target";
+    column_to_prop_mappings[NODE_PARENT] = "parent";
+    column_to_prop_mappings[EDGE_LABEL] = "name";
 
-    var node_column_names = [NODE_LABEL, NODE_COLOR];
-    var edge_column_names = [EDGE_SOURCE, EDGE_TARGET];
+    var node_column_names = [NODE_LABEL, NODE_COLOR, NODE_PARENT];
+    var edge_column_names = [EDGE_SOURCE, EDGE_TARGET, EDGE_LABEL];
 
     function data_updated()
     {
@@ -100,7 +109,10 @@
         }
 
         fixNodeReferences(edge_data[1]); // EDGE_SOURCE
+
         fixNodeReferences(edge_data[2]); // EDGE_TARGET
+
+        fixNodeReferences(node_data[3]); // NODE_PARENT
 
         var nodes = Array(node_data[0].length);
         for (var row = 0; row < node_data[0].length; row++)
@@ -271,7 +283,8 @@
 
     var valid_layouts = {null: 'Null', random: 'Random', preset: 'Preset', 
                          grid: 'Grid', circle: 'Circle', concentric: 'Concentric', 
-                         breadthfirst: 'Breadth-First', arbor: 'Arbor (Force-Directed)'};
+                         breadthfirst: 'Breadth-First', arbor: 'Arbor (Force-Directed)', 
+                         cose: "CompoundSpring"};
 
     function run_layout()
     {
@@ -371,8 +384,10 @@
                 .newProperty(NODE_LABEL, 'DynamicColumn', data_updated)
                 .newProperty(NODE_COLOR, 'DynamicColumn', data_updated) // TODO
                 .newProperty(NODE_SIZE, 'DynamicColumn', data_updated) // TODO
+                .newProperty(NODE_PARENT, 'DynamicColumn', data_updated)
                 .newProperty(EDGE_SOURCE, 'DynamicColumn', data_updated)
                 .newProperty(EDGE_TARGET, 'DynamicColumn', data_updated)
+                .newProperty(EDGE_LABEL, 'DynamicColumn', data_updated)
                 .newProperty(POSITIONS, 'LinkableVariable', positions_changed)
                 .newProperty(VIEWPORT, 'LinkableVariable', viewport_changed);
         
